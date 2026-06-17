@@ -42,6 +42,12 @@
     <h1>Typed Graph</h1>
     <div id="count"></div>
 
+    <h2>Node size by links</h2>
+    <div class="row">
+      <input type="range" id="size-factor" min="0" max="14" step="0.5" value="6" style="flex: 1" />
+      <span id="size-factor-value">6</span>
+    </div>
+
     <h2>Node type</h2>
     <div id="type-filters"></div>
 
@@ -91,6 +97,10 @@ function render(data) {
     degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
   }
 
+  function nodeSize(id, factor) {
+    return Math.min(48, 5 + Math.sqrt(degree.get(id) ?? 0) * factor);
+  }
+
   const nodes = new vis.DataSet(
     data.nodes.map((n) => ({
       id: n.id,
@@ -98,7 +108,7 @@ function render(data) {
       title: n.type,
       color: TYPE_COLORS[n.type] ?? "#999",
       shape: "dot",
-      size: Math.min(34, 5 + Math.sqrt(degree.get(n.id) ?? 0) * 4),
+      size: nodeSize(n.id, 6),
       font: { color: "#ebebec", strokeWidth: 3, strokeColor: "#161618" },
     })),
   );
@@ -146,11 +156,31 @@ function render(data) {
 
   // Once the layout settles, freeze it so it doesn't drift forever; dragging a
   // node still works (vis re-enables physics briefly to let it settle again).
+  // dragStart/dragEnd also fire for plain canvas panning (params.nodes is
+  // empty in that case) — only re-stabilize for an actual node drag, and
+  // restore the exact pan/zoom afterward so panning/dragging never resets
+  // the view.
   network.on("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
-  network.on("dragStart", () => network.setOptions({ physics: true }));
-  network.on("dragEnd", () => {
-    network.once("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
+  network.on("dragStart", (params) => {
+    if (params.nodes.length > 0) network.setOptions({ physics: true });
+  });
+  network.on("dragEnd", (params) => {
+    if (params.nodes.length === 0) return;
+    const viewPosition = network.getViewPosition();
+    const scale = network.getScale();
+    network.once("stabilizationIterationsDone", () => {
+      network.setOptions({ physics: false });
+      network.moveTo({ position: viewPosition, scale, animation: false });
+    });
     network.stabilize(100);
+  });
+
+  const sizeFactorEl = document.getElementById("size-factor");
+  const sizeFactorValueEl = document.getElementById("size-factor-value");
+  sizeFactorEl.addEventListener("input", () => {
+    const factor = Number(sizeFactorEl.value);
+    sizeFactorValueEl.textContent = factor;
+    nodes.update(data.nodes.map((n) => ({ id: n.id, size: nodeSize(n.id, factor) })));
   });
 
   const typeFiltersEl = document.getElementById("type-filters");
