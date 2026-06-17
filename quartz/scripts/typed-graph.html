@@ -44,8 +44,8 @@
 
     <h2>Node size by links</h2>
     <div class="row">
-      <input type="range" id="size-factor" min="1" max="30" step="1" value="10" style="flex: 1" />
-      <span id="size-factor-value">10&times;</span>
+      <input type="range" id="size-factor" min="1" max="30" step="1" value="12" style="flex: 1" />
+      <span id="size-factor-value">12&times;</span>
     </div>
 
     <h2>Node type</h2>
@@ -113,7 +113,7 @@ function render(data) {
       title: n.type,
       color: TYPE_COLORS[n.type] ?? "#999",
       shape: "dot",
-      size: nodeSize(n.id, 10),
+      size: nodeSize(n.id, 12),
       font: { color: "#ebebec", strokeWidth: 3, strokeColor: "#161618" },
     })),
   );
@@ -171,13 +171,15 @@ function render(data) {
   });
   network.on("dragEnd", (params) => {
     if (params.nodes.length === 0) return;
+    // Let physics settle in real time (smooth, frame-by-frame) rather than
+    // forcing an instant batch stabilize() — that computed up to 100 steps
+    // synchronously and snapped to the result, which looked like a jump/reset.
     const viewPosition = network.getViewPosition();
     const scale = network.getScale();
-    network.once("stabilizationIterationsDone", () => {
+    network.once("stabilized", () => {
       network.setOptions({ physics: false });
       network.moveTo({ position: viewPosition, scale, animation: false });
     });
-    network.stabilize(100);
   });
 
   const sizeFactorEl = document.getElementById("size-factor");
