@@ -6,7 +6,7 @@ That link is the website — a browsable, searchable map of the ideas from John
 Vervaeke's *Awakening from the Meaning Crisis* lecture series, with a graph
 view showing how everything connects.
 
-All credit for the ideas goes to John Vervaeke; this is just a study aid built
+All credit for the ideas goes to John Vervaeke and the giants who stood before him; this is just a vizualization of their work. 
 from his lectures.
 
 ---
