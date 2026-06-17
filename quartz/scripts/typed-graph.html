@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Typed Graph — Awakening from the Meaning Crisis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="https://unpkg.com/vis-network@9/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg: #161618;
+    --panel: #1f1f22;
+    --text: #ebebec;
+    --muted: #9a9a9a;
+    --border: #3a3a3d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Source Sans Pro", system-ui, sans-serif; }
+  #app { display: flex; height: 100%; }
+  #graph { flex: 1; }
+  #sidebar { width: 270px; padding: 1rem; background: var(--panel); border-left: 1px solid var(--border);
+    overflow-y: auto; font-size: 0.85rem; }
+  #sidebar h1 { font-size: 1.05rem; margin: 0 0 0.25rem; }
+  #sidebar a.back { color: var(--muted); text-decoration: none; font-size: 0.8rem; }
+  #sidebar a.back:hover { color: var(--text); }
+  #sidebar h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted); margin: 1.25rem 0 0.5rem; }
+  .row { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; cursor: pointer; }
+  .row input { cursor: pointer; }
+  .swatch { width: 0.85rem; height: 0.85rem; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+  .swatch.line { border-radius: 0; height: 3px; width: 1rem; }
+  #count { color: var(--muted); margin-top: 1rem; }
+  #node-info { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); min-height: 3rem; }
+  #node-info a { color: #7b97aa; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="graph"></div>
+  <div id="sidebar">
+    <a class="back" href="../">&larr; back to site</a>
+    <h1>Typed Graph</h1>
+    <div id="count"></div>
+
+    <h2>Node type</h2>
+    <div id="type-filters"></div>
+
+    <h2>Edge type (predicate)</h2>
+    <div id="predicate-filters"></div>
+
+    <div id="node-info"></div>
+  </div>
+</div>
+<script>
+const PREDICATE_COLORS = {
+  developed_by: "#4e79a7",
+  builds_on: "#59a14f",
+  contrasts_with: "#e15759",
+  responds_to: "#f28e2b",
+  part_of: "#76b7b2",
+  exemplified_by: "#edc949",
+  related: "#b07aa1",
+};
+const TYPE_COLORS = {
+  concept: "#7b97aa",
+  thinker: "#e0a458",
+  tradition: "#84a59d",
+  practice: "#d46a6a",
+  episode: "#9d8189",
+  moc: "#cfcfcf",
+};
+
+fetch("../static/typed-graph-data.json")
+  .then((r) => r.json())
+  .then((data) => render(data))
+  .catch((err) => {
+    document.getElementById("graph").innerHTML =
+      '<p style="padding:2rem;color:#e15759">Failed to load graph data: ' + err + "</p>";
+  });
+
+function render(data) {
+  const nodeTypes = [...new Set(data.nodes.map((n) => n.type))];
+  const predicates = [...new Set(data.edges.map((e) => e.predicate))];
+
+  const enabledTypes = new Set(nodeTypes);
+  const enabledPredicates = new Set(predicates);
+
+  const nodes = new vis.DataSet(
+    data.nodes.map((n) => ({
+      id: n.id,
+      label: n.title,
+      title: n.type,
+      color: TYPE_COLORS[n.type] ?? "#999",
+      shape: "dot",
+      size: n.type === "concept" ? 9 : 7,
+    })),
+  );
+
+  const edges = new vis.DataSet(
+    data.edges.map((e, i) => ({
+      id: i,
+      from: e.source,
+      to: e.target,
+      predicate: e.predicate,
+      color: { color: PREDICATE_COLORS[e.predicate] ?? "#888", opacity: 0.7 },
+      arrows: "to",
+      width: 1.5,
+    })),
+  );
+
+  document.getElementById("count").textContent =
+    data.nodes.length + " nodes, " + data.edges.length + " edges";
+
+  const network = new vis.Network(
+    document.getElementById("graph"),
+    { nodes, edges },
+    {
+      physics: { stabilization: true, barnesHut: { gravitationalConstant: -3000, springLength: 120 } },
+      interaction: { hover: true, tooltipDelay: 100 },
+      edges: { smooth: { type: "continuous" } },
+    },
+  );
+
+  const typeFiltersEl = document.getElementById("type-filters");
+  for (const t of nodeTypes) {
+    const row = document.createElement("label");
+    row.className = "row";
+    row.innerHTML =
+      '<input type="checkbox" checked data-type="' + t + '"/>' +
+      '<span class="swatch" style="background:' + (TYPE_COLORS[t] ?? "#999") + '"></span>' + t;
+    row.querySelector("input").addEventListener("change", (e) => {
+      e.target.checked ? enabledTypes.add(t) : enabledTypes.delete(t);
+      applyFilters();
+    });
+    typeFiltersEl.appendChild(row);
+  }
+
+  const predFiltersEl = document.getElementById("predicate-filters");
+  for (const p of predicates) {
+    const row = document.createElement("label");
+    row.className = "row";
+    row.innerHTML =
+      '<input type="checkbox" checked data-predicate="' + p + '"/>' +
+      '<span class="swatch line" style="background:' + (PREDICATE_COLORS[p] ?? "#888") + '"></span>' + p;
+    row.querySelector("input").addEventListener("change", (e) => {
+      e.target.checked ? enabledPredicates.add(p) : enabledPredicates.delete(p);
+      applyFilters();
+    });
+    predFiltersEl.appendChild(row);
+  }
+
+  function applyFilters() {
+    nodes.update(
+      data.nodes.map((n) => ({ id: n.id, hidden: !enabledTypes.has(n.type) })),
+    );
+    edges.update(
+      data.edges.map((e, i) => ({
+        id: i,
+        hidden:
+          !enabledPredicates.has(e.predicate) ||
+          !enabledTypes.has(nodeType(e.source)) ||
+          !enabledTypes.has(nodeType(e.target)),
+      })),
+    );
+  }
+
+  const nodeTypeMap = new Map(data.nodes.map((n) => [n.id, n.type]));
+  function nodeType(id) {
+    return nodeTypeMap.get(id);
+  }
+
+  network.on("click", (params) => {
+    const info = document.getElementById("node-info");
+    if (params.nodes.length === 1) {
+      const n = data.nodes.find((n) => n.id === params.nodes[0]);
+      info.innerHTML =
+        "<strong>" + n.title + "</strong><br/>" +
+        '<span style="color:var(--muted)">' + n.type + "</span><br/>" +
+        '<a href="../' + n.id + '">open note &rarr;</a>';
+    } else {
+      info.innerHTML = "";
+    }
+  });
+}
+</script>
+</body>
+</html>

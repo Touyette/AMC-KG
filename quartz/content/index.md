@@ -13,3 +13,6 @@ reproduce transcript text.
 
 Start at the [[MOC - Through Line]] for the whole-series argument, or browse the
 graph and search to explore.
+
+For a colored, filterable view of the relationships themselves, see the
+[full typed graph](./typed-graph/) (edges by predicate, nodes by type).
