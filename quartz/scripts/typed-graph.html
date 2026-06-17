@@ -29,7 +29,6 @@
   .row input { cursor: pointer; }
   .swatch { width: 0.85rem; height: 0.85rem; border-radius: 50%; flex-shrink: 0; display: inline-block; }
   .swatch.line { border-radius: 0; height: 3px; width: 1rem; }
-  #density { accent-color: #7b97aa; margin: 0.25rem 0; }
   #count { color: var(--muted); margin-top: 1rem; }
   #node-info { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); min-height: 3rem; }
   #node-info a { color: #7b97aa; }
@@ -42,9 +41,6 @@
     <a class="back" href="../">&larr; back to site</a>
     <h1>Typed Graph</h1>
     <div id="count"></div>
-
-    <h2>Density</h2>
-    <input type="range" id="density" min="0" max="100" value="50" style="width: 100%" />
 
     <h2>Node type</h2>
     <div id="type-filters"></div>
@@ -74,18 +70,6 @@ const TYPE_COLORS = {
   moc: "#cfcfcf",
 };
 
-// value: 0 (tight) .. 100 (spread out)
-function densityToBarnesHut(value) {
-  return {
-    gravitationalConstant: -(10000 + (value / 100) * 35000),
-    centralGravity: 0.15,
-    springLength: 150 + (value / 100) * 300,
-    springConstant: 0.03,
-    damping: 0.5,
-    avoidOverlap: 1,
-  };
-}
-
 fetch("../static/typed-graph-data.json")
   .then((r) => r.json())
   .then((data) => render(data))
@@ -101,6 +85,12 @@ function render(data) {
   const enabledTypes = new Set(nodeTypes);
   const enabledPredicates = new Set(predicates);
 
+  const degree = new Map();
+  for (const e of data.edges) {
+    degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+    degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+  }
+
   const nodes = new vis.DataSet(
     data.nodes.map((n) => ({
       id: n.id,
@@ -108,7 +98,8 @@ function render(data) {
       title: n.type,
       color: TYPE_COLORS[n.type] ?? "#999",
       shape: "dot",
-      size: n.type === "concept" ? 9 : 7,
+      size: Math.min(34, 5 + Math.sqrt(degree.get(n.id) ?? 0) * 4),
+      font: { color: "#ebebec", strokeWidth: 3, strokeColor: "#161618" },
     })),
   );
 
@@ -119,8 +110,8 @@ function render(data) {
       to: e.target,
       predicate: e.predicate,
       color: { color: PREDICATE_COLORS[e.predicate] ?? "#888", opacity: 0.7 },
-      arrows: "to",
-      width: 1.5,
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      width: 0.6,
     })),
   );
 
@@ -138,7 +129,14 @@ function render(data) {
       layout: { improvedLayout: false },
       physics: {
         stabilization: { iterations: 600, fit: true },
-        barnesHut: densityToBarnesHut(50),
+        barnesHut: {
+          gravitationalConstant: -45000,
+          centralGravity: 0.15,
+          springLength: 450,
+          springConstant: 0.03,
+          damping: 0.5,
+          avoidOverlap: 1,
+        },
         minVelocity: 0.75,
       },
       interaction: { hover: true, tooltipDelay: 100, dragNodes: true },
@@ -153,17 +151,6 @@ function render(data) {
   network.on("dragEnd", () => {
     network.once("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
     network.stabilize(100);
-  });
-
-  const densityEl = document.getElementById("density");
-  let densityDebounce = null;
-  densityEl.addEventListener("input", () => {
-    clearTimeout(densityDebounce);
-    densityDebounce = setTimeout(() => {
-      network.setOptions({ physics: { enabled: true, barnesHut: densityToBarnesHut(Number(densityEl.value)) } });
-      network.once("stabilizationIterationsDone", () => network.setOptions({ physics: false }));
-      network.stabilize(300);
-    }, 150);
   });
 
   const typeFiltersEl = document.getElementById("type-filters");
